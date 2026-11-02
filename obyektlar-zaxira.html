@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Объекты и клиенты</title>
+<style>
+:root{--bg:#e9ebeb;--card:#fff;--ink:#1d2327;--mute:#5d676d;--line:#cfd4d6;--acc:#2f5d8a;--mark:#f2c230;--ok:#1f7a4d;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#15191b;--card:#1f2527;--ink:#eef0f1;--mute:#9aa5aa;--line:#363e41;--acc:#7fb0e0;--ok:#5cc690;--bad:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0 auto;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:680px;padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(24px + env(safe-area-inset-bottom,0px))}
+h1{font-size:22px;margin:6px 0 10px}
+h2{font-size:16px;margin:0 0 6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 2px}
+input,select,textarea{width:100%;font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:6px;padding:9px}
+select option{color:#000}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button{font:inherit;border:0;border-radius:8px;padding:10px 14px;cursor:pointer;background:var(--acc);color:#fff}
+@media (prefers-color-scheme:dark){button{color:#10202e}}
+button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+button.del{background:transparent;color:var(--mute);border:1px solid var(--line);padding:8px 12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.line{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px;align-items:center}
+.obj{cursor:pointer}
+.obj b{font-size:17px}
+.sub{color:var(--mute);font-size:14px}
+.chip{display:inline-block;border-radius:20px;padding:2px 10px;font-size:13px;border:1px solid var(--line);margin-left:6px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.pos{color:var(--ok);font-weight:600}.neg{color:var(--bad);font-weight:600}
+.total{background:var(--mark);color:#1d2327;border-radius:10px;padding:12px;margin-bottom:12px}
+.total .row{padding:2px 0}.total .big{font-size:20px;font-weight:700;border-top:2px solid #1d2327;margin-top:6px;padding-top:6px}
+.top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.top input{flex:1}
+#msg{font-size:14px;color:var(--mute);min-height:20px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="msg" role="status"></div>
+<script>
+var D=[],cur=null,filter='',STAT=['В работе','Ждём оплату','Завершён'];
+var $=function(i){return document.getElementById(i)};
+var n=function(v){var x=parseFloat(String(v).replace(',','.'));return isNaN(x)?0:x};
+var R=function(x){return Math.round(x).toLocaleString('ru-RU')+' ₽'};
+var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')};
+function save(){try{localStorage.setItem('objekty',JSON.stringify(D))}catch(e){}}
+function load(){try{D=JSON.parse(localStorage.getItem('objekty')||'[]')||[]}catch(e){D=[]}}
+function sum(a){return a.reduce(function(s,x){return s+n(x.a)},0)}
+function calc(o){var t=n(o.m2)*n(o.price),p=sum(o.pays),e=sum(o.exps);return{t:t,p:p,r:t-p,e:e,pr:t-e}}
+function today(){var d=new Date();return d.toISOString().slice(0,10)}
+function newObj(){var o={id:Date.now(),client:'',phone:'',addr:'',work:'Шпаклёвка',m2:'',price:'',status:STAT[0],date:today(),pays:[],exps:[],note:''};D.unshift(o);save();cur=o.id;draw()}
+function open_(id){cur=id;draw();window.scrollTo(0,0)}
+function back(){cur=null;draw()}
+function find(){return D.filter(function(o){return o.id===cur})[0]}
+function list(){
+ var T=0,P=0;D.forEach(function(o){var c=calc(o);T+=c.t;P+=c.p});
+ var q=filter.toLowerCase();
+ var items=D.filter(function(o){return !q||(o.client+' '+o.addr+' '+o.phone).toLowerCase().indexOf(q)>-1});
+ $('app').innerHTML='<h1>Объекты и клиенты</h1>'+
+ '<div class="total"><div class="row"><span>Объектов</span><span>'+D.length+'</span></div><div class="row"><span>Всего по сметам</span><span>'+R(T)+'</span></div><div class="row"><span>Получено</span><span>'+R(P)+'</span></div><div class="row big"><span>Должны нам</span><span>'+R(T-P)+'</span></div></div>'+
+ '<div class="top"><input id="q" placeholder="Поиск: клиент, адрес, телефон" value="'+esc(filter)+'" oninput="filter=this.value;listItems()"><button onclick="newObj()">+ Новый</button></div><div id="items"></div>'+
+ '<div class="card"><h2>Резервная копия</h2><div class="sub">Скопируйте копию и отправьте себе в Telegram («Избранное»). Если данные пропадут, вставьте её сюда и нажмите «Восстановить».</div>'+
+ '<div class="top" style="margin-top:8px"><button class="ghost" onclick="backup()">Скопировать копию</button></div>'+
+ '<textarea id="rest" rows="3" placeholder="Вставьте сюда копию"></textarea>'+
+ '<div class="top" style="margin-top:8px"><button class="ghost" id="rbtn" onclick="restore()">Восстановить</button></div></div>';
+ listItems()}
+function listItems(){
+ var q=filter.toLowerCase();
+ var items=D.filter(function(o){return !q||(o.client+' '+o.addr+' '+o.phone).toLowerCase().indexOf(q)>-1});
+ $('items').innerHTML=items.length?items.map(function(o){var c=calc(o);
+  return '<div class="card obj" onclick="open_('+o.id+')"><b>'+esc(o.client||'Без имени')+'</b><span class="chip">'+esc(o.status)+'</span>'+
+  '<div class="sub">'+esc(o.addr||'Адрес не указан')+'</div>'+
+  '<div class="row"><span>'+(n(o.m2)||0)+' м² · '+esc(o.work)+'</span><span>'+R(c.t)+'</span></div>'+
+  '<div class="row"><span>Остаток к оплате</span><span class="'+(c.r>0?'neg':'pos')+'">'+R(c.r)+'</span></div></div>'}).join(''):
+  '<div class="card sub">'+(D.length?'Ничего не найдено.':'Пока нет объектов. Нажмите «+ Новый».')+'</div>'}
+function field(l,k,o,t){return '<label>'+l+'</label><input '+(t||'')+' value="'+esc(o[k])+'" oninput="setF(\''+k+'\',this.value)">'}
+function setF(k,v){var o=find();o[k]=v;save();upd()}
+function detail(){
+ var o=find();if(!o){back();return}
+ $('app').innerHTML='<div class="top"><button class="ghost" onclick="back()">← Назад</button><button class="del" onclick="delObj()" id="dbtn">Удалить</button></div>'+
+ '<h1>'+esc(o.client||'Новый клиент')+'</h1>'+
+ '<div class="card"><h2>Клиент</h2>'+field('Имя клиента','client',o)+field('Телефон','phone',o,'type="tel" inputmode="tel"')+field('Адрес объекта','addr',o)+'</div>'+
+ '<div class="card"><h2>Работа</h2>'+field('Вид работ','work',o)+
+ '<div class="two"><div>'+field('Площадь, м²','m2',o,'inputmode="decimal"')+'</div><div>'+field('Цена за м², ₽','price',o,'inputmode="decimal"')+'</div></div>'+
+ '<div class="two"><div><label>Статус</label><select onchange="setF(\'status\',this.value)">'+STAT.map(function(s){return '<option'+(s===o.status?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div><div>'+field('Дата начала','date',o,'type="date"')+'</div></div></div>'+
+ '<div class="total"><div class="row"><span>Сумма по смете</span><b id="t1"></b></div><div class="row"><span>Оплачено</span><span id="t2"></span></div><div class="row big"><span>Остаток</span><span id="t3"></span></div></div>'+
+ '<div class="card"><h2>Оплаты от клиента</h2><div id="pays"></div><button class="ghost" onclick="addL(\'pays\')">+ Добавить оплату</button></div>'+
+ '<div class="card"><h2>Расходы (материалы, рабочие)</h2><div id="exps"></div><button class="ghost" onclick="addL(\'exps\')">+ Добавить расход</button>'+
+ '<div class="row" style="margin-top:8px"><span>Расходы</span><span id="t4"></span></div><div class="row"><span>Прибыль</span><span id="t5"></span></div></div>'+
+ '<div class="card"><h2>Заметки</h2><textarea rows="3" oninput="setF(\'note\',this.value)">'+esc(o.note)+'</textarea></div>';
+ lines('pays');lines('exps');upd()}
+function lines(k){
+ var o=find(),e=$(k);
+ e.innerHTML=o[k].map(function(x,i){return '<div class="line"><input '+(k==='pays'?'type="date" value="'+esc(x.d)+'" oninput="setL(\'pays\','+i+',\'d\',this.value)"':'placeholder="Что" value="'+esc(x.n)+'" oninput="setL(\'exps\','+i+',\'n\',this.value)"')+'>'+
+  '<input inputmode="decimal" placeholder="Сумма, ₽" value="'+esc(x.a)+'" oninput="setL(\''+k+'\','+i+',\'a\',this.value)"><button class="del" aria-label="Удалить" onclick="delL(\''+k+'\','+i+')">✕</button></div>'}).join('')}
+function addL(k){var o=find();o[k].push(k==='pays'?{d:today(),a:''}:{n:'',a:''});save();lines(k)}
+function setL(k,i,f,v){var o=find();o[k][i][f]=v;save();upd()}
+function delL(k,i){var o=find();o[k].splice(i,1);save();lines(k);upd()}
+function upd(){var o=find();if(!o||!$('t1'))return;var c=calc(o);
+ $('t1').textContent=R(c.t);$('t2').textContent=R(c.p);$('t3').textContent=R(c.r);$('t4').textContent=R(c.e);
+ var p=$('t5');p.textContent=R(c.pr);p.className=c.pr>=0?'pos':'neg'}
+var dt=null;
+function delObj(){var b=$('dbtn');
+ if(!dt){b.textContent='Точно удалить?';dt=setTimeout(function(){dt=null;if($('dbtn'))$('dbtn').textContent='Удалить'},4000);return}
+ clearTimeout(dt);dt=null;D=D.filter(function(o){return o.id!==cur});save();back()}
+function say(t){$('msg').textContent=t}
+function backup(){
+ var s=JSON.stringify(D);
+ var old=function(){try{var a=document.createElement('textarea');a.value=s;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.focus();a.select();var r=document.execCommand('copy');document.body.removeChild(a);say(r?'Копия скопирована. Вставьте её в Telegram («Избранное»).':'Не удалось скопировать.')}catch(e){say('Не удалось скопировать.')}};
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(s).then(function(){say('Копия скопирована. Вставьте её в Telegram («Избранное»).')},old)}else{old()}}
+var rt=null;
+function restore(){
+ var t=$('rest').value.trim(),b=$('rbtn'),x;
+ try{x=JSON.parse(t);if(!Array.isArray(x))throw 0}catch(e){say('Это не похоже на копию. Вставьте весь текст копии.');return}
+ if(!rt){b.textContent='Заменить данные? Нажмите ещё раз';rt=setTimeout(function(){rt=null;if($('rbtn'))$('rbtn').textContent='Восстановить'},4000);return}
+ clearTimeout(rt);rt=null;D=x;save();draw();say('Данные восстановлены: объектов '+D.length+'.')}
+function draw(){if(cur)detail();else list()}
+load();draw();
+</script>
+</body>
+</html>
